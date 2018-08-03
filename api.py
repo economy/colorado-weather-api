@@ -2,7 +2,7 @@
 # Imports
 #----------------------------------------------------------------------------#
 
-from flask import Flask, render_template, request, g
+from flask import Flask, render_template, request, abort, g
 import logging
 from logging import Formatter, FileHandler
 import os
@@ -23,10 +23,65 @@ DATABASE = './tmp_db.db'
 #----------------------------------------------------------------------------#
 
 
-@app.route('/temps', methods=['GET', 'POST'])
-def temps():
+@app.route('/weather', methods=['GET', 'POST'])
+def weather():
 
 	conn = get_db()	
+	df = pd.read_sql_query('select * from temps', conn)
+
+	if request.method == 'GET':
+		lat = request.args.get('lat')
+		long = request.args.get('long')
+	elif request.method == 'POST':
+		lat = request.get_json()['lat']
+		long = request.get_json()['long']
+		if 'temp' in request.get_json().keys():
+			temp = request.get_json()['temp']
+		else:
+			temp = None
+
+	if lat and long:
+		result = df[
+				(df['lat'] == lat)
+				& (df['long'] == long)
+			]
+
+		if request.method == 'POST' and temp:
+
+			# equivalent to POST for create
+			if result.empty:
+				cursor = conn.cursor()
+				cursor.execute('''
+					INSERT INTO temps (lat, long, celc, added)
+					VALUES (?, ?, ?, ?)
+				''', (lat, long, temp, str(datetime.now())))
+				conn.commit()
+
+				updated_df = pd.read_sql_query('select * from temps', conn)
+				response = "Record added. {} records now in weather DB.".format(updated_df.shape[0])		
+
+			# equivalent to PUT for update	
+			else:	
+				cursor = conn.cursor()
+				cursor.execute('''
+					UPDATE temps SET celc = ?, added = ?
+					WHERE lat = ? AND long = ?
+				''', (temp, str(datetime.now()), lat, long))
+				conn.commit()
+				
+				response = "Record updated."
+
+		# standard GET
+		else:	
+			response = result.to_json(orient='records')
+	else:	
+		abort(404)		
+
+	return response, 200
+
+@app.route('/weather/all', methods=['GET'])
+def weather_all():
+	conn = get_db()
 	df = pd.read_sql_query('select * from temps', conn)
 
 	# optionally, specify how many records you want
@@ -39,38 +94,6 @@ def temps():
 
 	return response, 200
 
-@app.route('/add_temp', methods=['GET', 'POST'])
-def add_temp():
-
-	conn = get_db()
-	df = pd.read_sql_query('select * from temps', conn)
-	
-	if request.method == 'GET':
-		lat = request.args.get('lat')
-		long = request.args.get('long')
-		temp = request.args.get('temp')
-	else:
-		lat = request.form['lat']
-		long = request.form['long']
-		temp = request.form['temp']
-
-	try:
-		updated_df = df.append([lat, long, temp, str(datetime.now())], ignore_index=True)
-		cursor = conn.cursor()
-		cursor.execute('''INSERT INTO temps(lat, long, celc, added)
-                	VALUES(?,?,?,?)''', (lat, long, temp, str(datetime.now())))
-		conn.commit()
-	except IOError:
-		print("Unable to add the record given input!")
-
-	a = updated_df.shape[0]	
-	response = "Record added. Total records for Colorado: {:,}".format(a)
-
-	return response, 200
-
-@app_route('/update_temp', methods=['GET', 'POST', 'PUT'])
-def update_temp():
-	
 
 # Error handlers.
 
