@@ -22,32 +22,17 @@ app = Flask(__name__)
 
 
 @app.route('/get', methods=['GET', 'POST'])
-def get():
+def show_temps():
 	
-	a = df.sort_values('celc', ascending=False).to_json(orient='records')	
-
-	return a, 200
-
-@app.route('/head')
-def head():
-
 	# optionally, specify how many records you want
 	recs = request.args.get('records')
 	if recs:
 		recs = int(recs)
+		a = df.head(recs).to_json(orient='records')
 	else:
-		recs = 10
-
-	a = df.head(recs).to_json(orient='records')
+		a = df.sort_values('celc', ascending=False).to_json(orient='records')	
 
 	return a, 200
-
-
-@app.route('/options')
-def options():
-    
-    	return "/get, /put, /post, /head, /options", 200
-
 
 # Error handlers.
 
