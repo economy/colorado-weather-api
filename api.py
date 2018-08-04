@@ -24,65 +24,37 @@ DATABASE = './tmp_db.db'
 
 
 @app.route('/weather', methods=['GET', 'POST'])
-def weather():
+def get():
 
 	conn = get_db()	
-	df = pd.read_sql_query('select * from temps', conn)
+	df = read_df(conn)
 
-	if request.method == 'GET':
-		lat = request.args.get('lat')
-		long = request.args.get('long')
-	elif request.method == 'POST':
-		lat = request.get_json()['lat']
-		long = request.get_json()['long']
-		if 'temp' in request.get_json().keys():
-			temp = request.get_json()['temp']
-		else:
-			temp = None
+	try:
+		if request.method == 'GET':
+			lat = request.args.get('lat')
+			long = request.args.get('long')
+		elif request.method == 'POST':
+			lat = request.get_json()['lat']
+			long = request.get_json()['long']
+	except IOError:
+		return "`lat` and `long` parameters required for this method!", 500
 
-	if lat and long:
-		result = df[
-				(df['lat'] == lat)
-				& (df['long'] == long)
-			]
-
-		if request.method == 'POST' and temp:
-
-			# equivalent to POST for create
-			if result.empty:
-				cursor = conn.cursor()
-				cursor.execute('''
-					INSERT INTO temps (lat, long, celc, added)
-					VALUES (?, ?, ?, ?)
-				''', (lat, long, temp, str(datetime.now())))
-				conn.commit()
-
-				updated_df = pd.read_sql_query('select * from temps', conn)
-				response = "Record added. {} records now in weather DB.".format(updated_df.shape[0])		
-
-			# equivalent to PUT for update	
-			else:	
-				cursor = conn.cursor()
-				cursor.execute('''
-					UPDATE temps SET celc = ?, added = ?
-					WHERE lat = ? AND long = ?
-				''', (temp, str(datetime.now()), lat, long))
-				conn.commit()
-				
-				response = "Record updated."
-
-		# standard GET
-		else:	
-			response = result.to_json(orient='records')
-	else:	
-		abort(404)		
+	result = df[
+		(df['lat'] == lat)
+		& (df['long'] == long)
+	]
+	if result.empty:
+		return "Record not found.", 404
+		
+	response = result.to_json(orient='records')
 
 	return response, 200
 
+
 @app.route('/weather/all', methods=['GET'])
-def weather_all():
+def get_all():
 	conn = get_db()
-	df = pd.read_sql_query('select * from temps', conn)
+	df = read_df(conn)
 
 	# optionally, specify how many records you want
 	recs = request.args.get('records')
@@ -91,6 +63,117 @@ def weather_all():
 		response = df.head(recs).to_json(orient='records')
 	else:
 		response = df.sort_values('added', ascending=False).to_json(orient='records')	
+
+	return response, 200
+
+
+@app.route('/weather/add', methods = ['GET', 'POST'])
+def add():
+	conn = get_db()
+	df = read_df(conn)
+
+	try:
+		if request.method == 'GET':
+			lat = request.args.get('lat')
+			long = request.args.get('long')
+			temp = request.args.get('temp')
+		elif request.method == 'POST':
+			lat = request.get_json()['lat']
+			long = request.get_json()['long']
+			temp = request.get_json()['temp']
+	except IOError:
+		return "`lat`, `long`, and `temp` parameters required for this method!", 500
+
+	cursor = conn.cursor()
+	cursor.execute('''
+		INSERT INTO temps (lat, long, celc, added)
+		VALUES (?, ?, ?, ?)
+	''', (lat, long, temp, str(datetime.now())))
+	conn.commit()
+
+	updated_df = read_df(conn)
+
+	response = "Record added. {:,} records now in weather DB.".format(updated_df.shape[0])		
+	
+	return response, 200
+	
+
+@app.route('/weather/update', methods = ['GET', 'POST'])
+def update():
+	conn = get_db()
+	df = read_df(conn)
+
+	try:
+		if request.method == 'GET':
+			lat = request.args.get('lat')
+			long = request.args.get('long')
+			temp = request.args.get('temp')
+		elif request.method == 'POST':
+			lat = request.get_json()['lat']
+			long = request.get_json()['long']
+			temp = request.get_json()['temp']
+	except IOError:
+		return "`lat`, `long`, and `temp` parameters required for this method!", 500	
+
+	result = df[
+		(df['lat'] == lat)
+		& (df['long'] == long)
+	]
+
+	if result.empty:
+		return "Record not found, nothing was updated", 404
+	else:
+		cursor = conn.cursor()
+		cursor.execute('''
+			UPDATE temps SET celc = ?, added = ?
+			WHERE lat = ? AND long = ?
+		''', (temp, str(datetime.now()), lat, long))
+		conn.commit()
+
+	updated_df = read_df(conn)
+
+	new_result = updated_df[
+		(updated_df['lat'] == lat)
+		& (updated_df['long'] == long)
+	]
+
+	response = new_result.to_json(orient='records')
+
+	return "Record updated: {}".format(response), 200
+
+
+@app.route('/weather/remove', methods = ['GET', 'POST'])
+def remove():
+	conn = get_db()
+	df = read_df(conn)
+
+	try:
+		if request.method == 'GET':
+			lat = request.args.get('lat')
+			long = request.args.get('long')
+		elif request.method == 'POST':
+			lat = request.get_json()['lat']
+			long = request.get_json()['long']
+	except IOError:
+		return "`lat` and `long` parameters required for this method!", 500	
+
+	result = df[
+		(df['lat'] == lat)
+		& (df['long'] == long)
+	]
+
+	if result.empty:
+		return "Record not found, nothing was updated", 404
+	else:
+		cursor = conn.cursor()
+		cursor.execute('''
+			DELETE FROM temps
+			WHERE lat = ? AND long = ?
+		''', (temp, str(datetime.now()), lat, long))
+		conn.commit()
+
+	updated_df = read_df(conn)
+	response = "Record deleted. {:,} records now in weather DB".format(updated_df.shape[0])
 
 	return response, 200
 
@@ -151,6 +234,10 @@ def get_db():
 	if db is None:
 		db = g._database = sqlite3.connect(DATABASE)
 	return db
+
+def read_df(conn):
+	df = pd.read_sql_query('select * from temps', conn)
+	return df
 
 @app.teardown_appcontext
 def close_connection(exception):
