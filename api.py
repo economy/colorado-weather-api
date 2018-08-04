@@ -28,16 +28,19 @@ def get():
 
 	conn = get_db()	
 	df = read_df(conn)
-
-	try:
-		if request.method == 'GET':
+ 
+	if request.method == 'GET':
+		if request.args.get('lat') and request.args.get('long'):
 			lat = request.args.get('lat')
 			long = request.args.get('long')
-		elif request.method == 'POST':
+		else: 
+			return "`lat` and `long` parameters required for this method", 500
+	elif request.method == 'POST':
+		if all([ x in request.get_json().keys() for x in ['lat', 'long'] ]):
 			lat = request.get_json()['lat']
 			long = request.get_json()['long']
-	except IOError:
-		return "`lat` and `long` parameters required for this method!", 500
+		else:
+			return "`lat` and `long` parameters required for this method", 500
 
 	result = df[
 		(df['lat'] == lat)
@@ -72,18 +75,19 @@ def add():
 	conn = get_db()
 	df = read_df(conn)
 
-	try:
-		if request.method == 'GET':
+	if request.method == 'GET':
+		if request.args.get('lat') and request.args.get('long') and request.args.get('temp'):
 			lat = request.args.get('lat')
 			long = request.args.get('long')
-			temp = request.args.get('temp')
-		elif request.method == 'POST':
+		else: 
+			return "`lat`, `long`, and `temp` parameters required for this method", 500
+	elif request.method == 'POST':
+		if all([ x in request.get_json().keys() for x in ['lat', 'long', 'temp'] ]):
 			lat = request.get_json()['lat']
 			long = request.get_json()['long']
-			temp = request.get_json()['temp']
-	except IOError:
-		return "`lat`, `long`, and `temp` parameters required for this method!", 500
-
+		else:
+			return "`lat`, `long`, and `temp` parameters required for this method", 500
+	
 	cursor = conn.cursor()
 	cursor.execute('''
 		INSERT INTO temps (lat, long, celc, added)
@@ -103,17 +107,18 @@ def update():
 	conn = get_db()
 	df = read_df(conn)
 
-	try:
-		if request.method == 'GET':
+	if request.method == 'GET':
+		if request.args.get('lat') and request.args.get('long') and request.args.get('temp'):
 			lat = request.args.get('lat')
 			long = request.args.get('long')
-			temp = request.args.get('temp')
-		elif request.method == 'POST':
+		else: 
+			return "`lat`, `long`, and `temp` parameters required for this method", 500
+	elif request.method == 'POST':
+		if all([ x in request.get_json().keys() for x in ['lat', 'long', 'temp'] ]):
 			lat = request.get_json()['lat']
 			long = request.get_json()['long']
-			temp = request.get_json()['temp']
-	except IOError:
-		return "`lat`, `long`, and `temp` parameters required for this method!", 500	
+		else:
+			return "`lat`, `long`, and `temp` parameters required for this method", 500
 
 	result = df[
 		(df['lat'] == lat)
@@ -147,16 +152,19 @@ def remove():
 	conn = get_db()
 	df = read_df(conn)
 
-	try:
-		if request.method == 'GET':
+	if request.method == 'GET':
+		if request.args.get('lat') and request.args.get('long'):
 			lat = request.args.get('lat')
 			long = request.args.get('long')
-		elif request.method == 'POST':
+		else: 
+			return "`lat` and `long` parameters required for this method", 500
+	elif request.method == 'POST':
+		if all([ x in request.get_json().keys() for x in ['lat', 'long'] ]):
 			lat = request.get_json()['lat']
 			long = request.get_json()['long']
-	except IOError:
-		return "`lat` and `long` parameters required for this method!", 500	
-
+		else:
+			return "`lat` and `long` parameters required for this method", 500
+	
 	result = df[
 		(df['lat'] == lat)
 		& (df['long'] == long)
